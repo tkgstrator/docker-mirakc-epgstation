@@ -1,0 +1,140 @@
+services:
+  # mirakurun:
+  #   image: chinachu/mirakurun
+  #   cap_add:
+  #     - SYS_ADMIN
+  #     - SYS_NICE
+  #   # ports:
+  #   #   - 40772:40772
+  #   #   - 9229:9229
+  #   volumes:
+  #     - ./mirakurun/conf:/app-config
+  #     - ./mirakurun/data:/app-data
+  #   environment:
+  #     TZ: "Asia/Tokyo"
+  #   devices:
+  #     - /dev/bus:/dev/bus
+  #     - /dev/dvb:/dev/dvb
+  #   restart: unless-stopped
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-file: "1"
+  #       max-size: 10m
+
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   environment:
+  #     TS_AUTHKEY: $TS_AUTHKEY
+  #     # TS_STATE_DIR: /var/lib/tailscale
+  #     TS_USERSPACE: false
+  #     TS_AUTH_ONCE: false
+  #     TS_ROUTES: 192.168.1.0/24
+  #     TS_EXTRA_ARGS: --accept-routes
+  #   volumes:
+  #     - /lib/modules:/lib/modules
+  #     - /dev/net/tun:/dev/net/tun
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
+  #   networks:
+  #     internal_network:
+  #     external_network:
+  #   restart: unless-stopped
+
+  mirakc:
+    container_name: mirakc
+    build:
+      context: mirakc
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    devices:
+      - /dev/px4video0
+      - /dev/px4video1
+      - /dev/px4video2
+      - /dev/px4video3
+    volumes:
+      - mirakc-epg:/var/lib/mirakc/epg/
+      - ./mirakc/config.yml:/etc/mirakc/config.yml:ro
+    environment:
+      TZ: Asia/Tokyo
+      RUST_LOG: info,mirakc=debug
+
+  mysql:
+    container_name: mariadb 
+    image: mariadb:10.5
+    volumes:
+      - mysql-db:/var/lib/mysql
+    environment:
+      MYSQL_USER: $MYSQL_USER 
+      MYSQL_PASSWORD: $MYSQL_PASSWORD
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD 
+      MYSQL_DATABASE: $MYSQL_DATABASE
+      TZ: "Asia/Tokyo"
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --performance-schema=false --expire_logs_days=1 # for mariadb
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  konomitv:
+    container_name: konomitv
+    build:
+      context: konomitv
+      dockerfile: Dockerfile
+    restart: always
+    network_mode: host
+    ports:
+      - 7000:7000
+    volumes:
+      - ./konomitv/config.yaml:/code/config.yaml
+      - ./konomitv/server/data:/code/server/data/
+      - ./konomitv/server/logs:/code/server/logs/
+      - /mnt/hdd/:/host-rootfs/
+
+  epgstation:
+    container_name: epgstation 
+    build:
+      context: epgstation
+      dockerfile: nvenc.Dockerfile 
+    environment:
+      TZ: "Asia/Tokyo"
+    volumes:
+      - ./epgstation/config:/app/config
+      - ./epgstation/data:/app/data
+      - ./epgstation/thumbnail:/app/thumbnail
+      - ./epgstation/logs:/app/logs
+      - /mnt/hdd/recorded:/app/recorded
+      - /mnt/hdd/thumbnail:/app/thumbnail
+    depends_on:
+      - mirakc
+      - mysql
+    ports:
+      - 8888:8888
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [video,utility]
+
+  cloudflare_tunnel:
+    container_name: cloudflared
+    restart: always
+    image: cloudflare/cloudflared
+    command: tunnel --autoupdate-freq 12h run
+    environment:
+      TUNNEL_TOKEN: $TUNNEL_TOKEN
+      NO_AUTOUPDATE: false
+    # extra_hosts:
+    #   - host.docker.internal:host-gateway
+
+volumes:
+  mirakc-epg:
+    driver: local
+  mysql-db:
+    driver: local
