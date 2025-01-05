@@ -1,0 +1,9 @@
+[submodule "mirakc"]
+	path = mirakc
+	url = git@github.com:tkgstrator/mirakc.git
+[submodule "konomitv"]
+	path = konomitv
+	url = https://github.com/tsukumijima/KonomiTV
+[submodule "epgstation"]
+	path = epgstation
+	url = git@github.com:tkgstrator/docker-mirakurun-epgstation.git
