@@ -59,6 +59,8 @@ services:
       - ./mirakc/config.yml:/etc/mirakc/config.yml:ro
     environment:
       TZ: Asia/Tokyo
+      MIRAKC_ARIB_LOG_NO_TIMESTAMP: 1
+      MIRAKC_ARIG_LOG: info
       RUST_LOG: info,mirakc=debug
 
   mysql:
@@ -101,13 +103,19 @@ services:
       dockerfile: nvenc.Dockerfile 
     environment:
       TZ: "Asia/Tokyo"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
     volumes:
       - ./epgstation/config:/app/config
       - ./epgstation/data:/app/data
       - ./epgstation/thumbnail:/app/thumbnail
       - ./epgstation/logs:/app/logs
+      - ./patch/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
+      - ./patch/patch.sh:/usr/local/bin/patch.sh
       - /mnt/hdd/recorded:/app/recorded
       - /mnt/hdd/thumbnail:/app/thumbnail
+    entrypoint:
+      - /usr/local/bin/docker-entrypoint.sh
     depends_on:
       - mirakc
       - mysql
@@ -120,21 +128,11 @@ services:
           devices:
             - driver: nvidia
               count: 1
-              capabilities: [video,utility]
-
-  cloudflare_tunnel:
-    container_name: cloudflared
-    restart: always
-    image: cloudflare/cloudflared
-    command: tunnel --autoupdate-freq 12h run
-    environment:
-      TUNNEL_TOKEN: $TUNNEL_TOKEN
-      NO_AUTOUPDATE: false
-    # extra_hosts:
-    #   - host.docker.internal:host-gateway
+              capabilities: [compute,video,utility]
 
 volumes:
   mirakc-epg:
+    name: mirakc-epg
     driver: local
   mysql-db:
     driver: local
