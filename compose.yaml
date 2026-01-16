@@ -54,6 +54,14 @@ services:
       - /dev/px4video1
       - /dev/px4video2
       - /dev/px4video3
+      - /dev/pxmlt8video0
+      - /dev/pxmlt8video1
+      - /dev/pxmlt8video2
+      - /dev/pxmlt8video3
+      - /dev/pxmlt8video4
+      - /dev/pxmlt8video5
+      - /dev/pxmlt8video6
+      - /dev/pxmlt8video7
     volumes:
       - mirakc-epg:/var/lib/mirakc/epg/
       - ./mirakc/config.yml:/etc/mirakc/config.yml:ro
@@ -63,16 +71,16 @@ services:
       MIRAKC_ARIG_LOG: info
       RUST_LOG: info,mirakc=debug
 
-  mysql:
+  mariadb:
     container_name: mariadb 
     image: mariadb:10.5
     volumes:
-      - mysql-db:/var/lib/mysql
+      - mariadb-db:/var/lib/mysql
     environment:
-      MYSQL_USER: $MYSQL_USER 
-      MYSQL_PASSWORD: $MYSQL_PASSWORD
-      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD 
-      MYSQL_DATABASE: $MYSQL_DATABASE
+      MYSQL_USER: epgstation
+      MYSQL_PASSWORD: epgstation
+      MYSQL_ROOT_PASSWORD: epgstation
+      MYSQL_DATABASE: epgstation
       TZ: "Asia/Tokyo"
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --performance-schema=false --expire_logs_days=1 # for mariadb
     restart: unless-stopped
@@ -80,6 +88,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   konomitv:
     container_name: konomitv
@@ -88,13 +102,11 @@ services:
       dockerfile: Dockerfile
     restart: always
     network_mode: host
-    ports:
-      - 7000:7000
     volumes:
       - ./konomitv/config.yaml:/code/config.yaml
       - ./konomitv/server/data:/code/server/data/
       - ./konomitv/server/logs:/code/server/logs/
-      - /mnt/hdd/:/host-rootfs/
+      - /mnt/sda1/:/host-rootfs/
 
   epgstation:
     container_name: epgstation 
@@ -108,20 +120,28 @@ services:
     volumes:
       - ./epgstation/config:/app/config
       - ./epgstation/data:/app/data
-      - ./epgstation/thumbnail:/app/thumbnail
       - ./epgstation/logs:/app/logs
-      - ./patch/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh
-      - ./patch/patch.sh:/usr/local/bin/patch.sh
-      - /mnt/hdd/recorded:/app/recorded
-      - /mnt/hdd/thumbnail:/app/thumbnail
+      - ./epgstation/recorded_tmp:/app/recorded_tmp
+      - ./epgstation/thumbnail:/app/thumbnail
+      - ./epgstation/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      - ./epgstation/patch.sh:/usr/local/bin/patch.sh:ro
+      - /mnt/sda1/encoded:/app/encoded
+      - /mnt/sda1/recorded:/app/recorded
+      - /mnt/sda1/thumbnail:/app/thumbnail
     entrypoint:
       - /usr/local/bin/docker-entrypoint.sh
+    command:
+      - npm
+      - start
     depends_on:
-      - mirakc
-      - mysql
+      mirakc:
+        condition: service_started
+      mariadb:
+        condition: service_healthy
     ports:
       - 8888:8888
-    restart: unless-stopped
+      - 8443:8443
+    restart: always
     deploy:
       resources:
         reservations:
@@ -130,9 +150,21 @@ services:
               count: 1
               capabilities: [compute,video,utility]
 
+  cloudflared:
+    container_name: cloudflared
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --autoupdate-freq 12h run
+    environment:
+      TUNNEL_TOKEN: $TUNNEL_TOKEN
+      NO_AUTOUPDATE: false
+    extra_hosts:
+      - host.docker.internal:host-gateway
+
 volumes:
   mirakc-epg:
     name: mirakc-epg
     driver: local
-  mysql-db:
+  mariadb-db:
+    name: mariadb-db
     driver: local

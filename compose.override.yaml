@@ -14,6 +14,14 @@ services:
           devices:
           - driver: nvidia
             capabilities: [gpu,video,utility]
+    command:
+      - /code/server/.venv/bin/python
+      - KonomiTV.py
+    volumes:
+      - ./epgstation/docker-entrypoint.sh:/usr/local/bin/docker-entrypoint.sh:ro
+      - ./epgstation/patch.sh:/usr/local/bin/patch.sh:ro
+    entrypoint:
+      - /usr/local/bin/docker-entrypoint.sh
 
   miraview:
     container_name: miraview
@@ -26,74 +34,8 @@ services:
       MIRAVIEW_VERSION: v0.1.2
     entrypoint: ash
     command: -c "curl -L https://github.com/maeda577/miraview/releases/download/$$MIRAVIEW_VERSION/build.tar.gz | tar -zxvf -"
-
-  cadvisor:
-    container_name: cadvisor
-    image: gcr.io/cadvisor/cadvisor:latest
-    restart: always
-    volumes: 
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    privileged: true
-    devices: 
-      - /dev/kmsg
-
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus:latest
-    restart: always
-    volumes: 
-      - ./src/prometheus.yml:/etc/prometheus/prometheus.yml
-    privileged: true
-    ports:
-      - 9090:9090
-    depends_on:
-      - cadvisor
-
-  grafana:
-    container_name: grafana
-    image: grafana/grafana:latest
-    restart: always
-    environment:
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - DS_PROMETHEUS=prometheus
-    volumes: 
-      - grafana-data:/var/lib/grafana
-      - ./src/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-      - ./src/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
-      - ./src/default.yaml:/etc/grafana/provisioning/dashboards/default.yaml
-    privileged: true
-    depends_on:
-      - prometheus
-
-  nvidia:
-    container_name: nvidia
-    image: utkuozdemir/nvidia_gpu_exporter:1.2.1
-    restart: always
-    # image: nvidia/dcgm-exporter:3.3.9-3.6.1-ubuntu22.04
-    ports:
-      - 9835:9835
-    devices:
-      - /dev/nvidiactl:/dev/nvidiactl
-      - /dev/nvidia0:/dev/nvidia0
-    volumes:
-      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so
-      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
-      - /usr/bin/nvidia-smi:/usr/bin/nvidia-smi
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [ gpu ]
-    cap_add:
-      - SYS_ADMIN
       
 volumes:
   miraview-html:
     name: miraview_html
-    driver: local
-  grafana-data:
     driver: local
