@@ -113,6 +113,7 @@ services:
     build:
       context: epgstation
       dockerfile: nvenc.Dockerfile 
+    runtime: nvidia
     environment:
       TZ: "Asia/Tokyo"
       NVIDIA_VISIBLE_DEVICES: "all"
