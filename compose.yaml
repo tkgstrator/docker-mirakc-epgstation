@@ -1,47 +1,4 @@
 services:
-  # mirakurun:
-  #   image: chinachu/mirakurun
-  #   cap_add:
-  #     - SYS_ADMIN
-  #     - SYS_NICE
-  #   # ports:
-  #   #   - 40772:40772
-  #   #   - 9229:9229
-  #   volumes:
-  #     - ./mirakurun/conf:/app-config
-  #     - ./mirakurun/data:/app-data
-  #   environment:
-  #     TZ: "Asia/Tokyo"
-  #   devices:
-  #     - /dev/bus:/dev/bus
-  #     - /dev/dvb:/dev/dvb
-  #   restart: unless-stopped
-  #   logging:
-  #     driver: json-file
-  #     options:
-  #       max-file: "1"
-  #       max-size: 10m
-
-  # tailscale:
-  #   image: tailscale/tailscale:latest
-  #   environment:
-  #     TS_AUTHKEY: $TS_AUTHKEY
-  #     # TS_STATE_DIR: /var/lib/tailscale
-  #     TS_USERSPACE: false
-  #     TS_AUTH_ONCE: false
-  #     TS_ROUTES: 192.168.1.0/24
-  #     TS_EXTRA_ARGS: --accept-routes
-  #   volumes:
-  #     - /lib/modules:/lib/modules
-  #     - /dev/net/tun:/dev/net/tun
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - SYS_MODULE
-  #   networks:
-  #     internal_network:
-  #     external_network:
-  #   restart: unless-stopped
-
   mirakc:
     build:
       context: mirakc
@@ -64,8 +21,9 @@ services:
       - /dev/pxmlt8video6
       - /dev/pxmlt8video7
     volumes:
-      - mirakc-epg:/var/lib/mirakc/epg/
       - ./mirakc/config.yml:/etc/mirakc/config.yml:ro
+      - mirakc-epg:/var/lib/mirakc/epg/
+      - miraview-html:/var/www/miraview:ro
     environment:
       TZ: Asia/Tokyo
       MIRAKC_ARIB_LOG_NO_TIMESTAMP: 1
@@ -87,8 +45,8 @@ services:
     restart: unless-stopped
     logging:
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: 10m
+        max-file: 3
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       start_period: 10s
@@ -105,11 +63,14 @@ services:
     # network_mode: host
     ports:
       - 7000:7000
-    environment:
-      NVIDIA_VISIBLE_DEVICES: "all"
-      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
     devices:
       - /dev/dri:/dev/dri
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu,video,utility]
     volumes:
       - ./konomitv/config.yaml:/code/config.yaml
       - ./konomitv/server/data:/code/server/data/
@@ -124,8 +85,12 @@ services:
     runtime: nvidia
     environment:
       TZ: "Asia/Tokyo"
-      NVIDIA_VISIBLE_DEVICES: "all"
-      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu,video,utility]
     volumes:
       - ./epgstation/config:/app/config
       - ./epgstation/data:/app/data
@@ -150,13 +115,18 @@ services:
     ports:
       - 8888:8888
       - 8443:8443
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [compute,video,utility]
+
+  miraview:
+    container_name: miraview
+    image: docker.io/mirakc/mirakc:alpine
+    restart: "no"
+    volumes:
+      - miraview-html:/var/www/miraview
+    working_dir: /var/www/miraview
+    environment:
+      MIRAVIEW_VERSION: v0.1.2
+    entrypoint: ash
+    command: -c "curl -L https://github.com/maeda577/miraview/releases/download/$$MIRAVIEW_VERSION/build.tar.gz | tar -zxvf -"
 
   cloudflared:
     container_name: cloudflared
@@ -175,4 +145,6 @@ volumes:
     driver: local
   mariadb-db:
     name: mariadb-db
+  miraview-html:
+    name: miraview_html
     driver: local
