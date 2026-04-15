@@ -49,6 +49,8 @@ services:
       dockerfile: Dockerfile
     init: true
     restart: unless-stopped
+    ports:
+      - "40772:40772"
     devices:
       - /dev/px4video0
       - /dev/px4video1
