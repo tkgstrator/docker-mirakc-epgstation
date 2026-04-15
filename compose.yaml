@@ -43,7 +43,6 @@ services:
   #   restart: unless-stopped
 
   mirakc:
-    container_name: mirakc
     build:
       context: mirakc
       dockerfile: Dockerfile
@@ -98,11 +97,10 @@ services:
       retries: 3
 
   konomitv:
-    container_name: konomitv
     build:
       context: konomitv
       dockerfile: Dockerfile
-    restart: always
+    restart: unless-stopped
     network_mode: host
     volumes:
       - ./konomitv/config.yaml:/code/config.yaml
@@ -111,7 +109,6 @@ services:
       - /mnt/sda1/:/host-rootfs/
 
   epgstation:
-    container_name: epgstation 
     build:
       context: epgstation
       dockerfile: nvenc.Dockerfile 
@@ -144,7 +141,7 @@ services:
     ports:
       - 8888:8888
       - 8443:8443
-    restart: always
+    restart: unless-stopped 
     deploy:
       resources:
         reservations:
