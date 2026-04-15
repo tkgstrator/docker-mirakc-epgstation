@@ -3,10 +3,10 @@ services:
     build:
       context: mirakc
       dockerfile: Dockerfile
-    init: true
+    init: false
     restart: unless-stopped
     ports:
-      - "40772:40772"
+      - 40772:40772
     devices:
       - /dev/px4video0
       - /dev/px4video1
@@ -31,7 +31,6 @@ services:
       RUST_LOG: info,mirakc=debug
 
   mariadb:
-    container_name: mariadb 
     image: mariadb:10.5
     volumes:
       - mariadb-db:/var/lib/mysql
@@ -63,6 +62,9 @@ services:
     # network_mode: host
     ports:
       - 7000:7000
+    environment:
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
     devices:
       - /dev/dri:/dev/dri
     deploy:
@@ -72,7 +74,7 @@ services:
             - driver: nvidia
               capabilities: [gpu,video,utility]
     volumes:
-      - ./konomitv/config.yaml:/code/config.yaml
+      - ./konomitv/config.yaml:/code/config.yaml:ro
       - ./konomitv/server/data:/code/server/data/
       - ./konomitv/server/logs:/code/server/logs/
       - /mnt/sda1/:/host-rootfs/
@@ -85,6 +87,8 @@ services:
     runtime: nvidia
     environment:
       TZ: "Asia/Tokyo"
+      NVIDIA_VISIBLE_DEVICES: "all"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,video,utility"
     deploy:
       resources:
         reservations:
@@ -104,9 +108,9 @@ services:
       - /mnt/sda1/thumbnail:/app/thumbnail
     # entrypoint:
     #   - /usr/local/bin/docker-entrypoint.sh
-    command:
-      - npm
-      - start
+    # command:
+    #   - npm
+    #   - start
     depends_on:
       mirakc:
         condition: service_started
